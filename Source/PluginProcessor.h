@@ -63,10 +63,10 @@ private:
     float initialFreqParam;
     float initialOrderParam;
 
-    float lastSampleRate;
+    double lastSampleRate;
     juce::dsp::WindowingFunction<float>::WindowingMethod windowingMethod;
     float cutoffFrequency;
-    int filterOrder;
+    size_t filterOrder;
 
     //std::unique_ptr<juce::dsp::FIR::Coefficients<float>> newCoefficients;
 

@@ -9,7 +9,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-
 //==============================================================================
 FirFilter_JUCEAudioProcessor::FirFilter_JUCEAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -50,7 +49,7 @@ FirFilter_JUCEAudioProcessor::FirFilter_JUCEAudioProcessor()
     // 初期値を使用して設定
     windowingMethod = static_cast<juce::dsp::WindowingFunction<float>::WindowingMethod>(static_cast<int>(initialWindowParam));
     cutoffFrequency = initialFreqParam;
-    filterOrder = static_cast<int>(initialOrderParam);
+    filterOrder = static_cast<size_t>(initialOrderParam);
 
 }
 
@@ -105,15 +104,20 @@ int FirFilter_JUCEAudioProcessor::getCurrentProgram()
 
 void FirFilter_JUCEAudioProcessor::setCurrentProgram (int index)
 {
+    juce::ignoreUnused (index);
 }
 
 const juce::String FirFilter_JUCEAudioProcessor::getProgramName (int index)
 {
+    juce::ignoreUnused (index);
     return {};
 }
 
 void FirFilter_JUCEAudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
+    juce::ignoreUnused (index, newName);
+    // NB: This method is not used in this example, but you can implement it if you want to support program names.
+    // You can also use the AudioProcessorValueTreeState to manage program names.
 }
 
 //==============================================================================
@@ -123,8 +127,8 @@ void FirFilter_JUCEAudioProcessor::prepareToPlay (double sampleRate, int samples
     
     juce::dsp::ProcessSpec spec;
     spec.sampleRate = sampleRate;
-    spec.maximumBlockSize = samplesPerBlock;
-    spec.numChannels = getTotalNumOutputChannels();
+    spec.maximumBlockSize =  static_cast<uint32> (samplesPerBlock);
+    spec.numChannels = static_cast<uint32> (getTotalNumOutputChannels());
 
 //    fir.state = FilterDesign<float>::designFIRLowpassWindowMethod (440.0f, sampleRate, 21,
 //        WindowingFunction<float>::blackman);
@@ -168,6 +172,7 @@ bool FirFilter_JUCEAudioProcessor::isBusesLayoutSupported (const BusesLayout& la
 
 void FirFilter_JUCEAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    juce::ignoreUnused (midiMessages);
     juce::ScopedLock parameterLock (parameterUpdateLock);
 
     juce::ScopedNoDenormals noDenormals;
@@ -214,7 +219,6 @@ void FirFilter_JUCEAudioProcessor::setStateInformation (const void* data, int si
             parameters.replaceState(juce::ValueTree::fromXml(*xmlState));
 }
 
-////このコールバック メソッドは、パラメータが変更されたときに AudioProcessorValueTreeStateによって呼び出されます。
 void FirFilter_JUCEAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
 {
 
@@ -233,18 +237,15 @@ void FirFilter_JUCEAudioProcessor::parameterChanged(const juce::String& paramete
     else if (parameterID == "order")
     {
         std::cout << "Order changed to: " << newValue << std::endl;
-        filterOrder = static_cast<int>(newValue);
+        filterOrder = static_cast<size_t>(newValue);
     }
 
     juce::ScopedLock parameterLock (parameterUpdateLock);
 
-    // FIR フィルタの状態を更新
     *fir.state = *juce::dsp::FilterDesign<float>::designFIRLowpassWindowMethod(
         cutoffFrequency, lastSampleRate, filterOrder, windowingMethod);
 }
 
-//==============================================================================
-// This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new FirFilter_JUCEAudioProcessor();

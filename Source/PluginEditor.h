@@ -9,11 +9,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-//#include "PluginProcessor.h"
 
-//==============================================================================
-/**
-*/
 class FirFilter_JUCEAudioProcessorEditor  : public juce::AudioProcessorEditor
 {
 public:
@@ -27,7 +23,7 @@ public:
 
 private:
   juce::LookAndFeel_V4 lightLookAndFeel;
-  juce::AudioProcessorValueTreeState& valueTreeState; // ✅ 参照で保持
+  juce::AudioProcessorValueTreeState& valueTreeState; 
   juce::Slider dial1Slider;
   juce::Slider dial2Slider;
   
@@ -38,7 +34,6 @@ private:
   juce::Label  label2;
   juce::Label  label3;
 
-  //AudioProcessorValueTreeState::SliderAttachmentのスマートポインタ
   std::unique_ptr<SliderAttachment> dial1Attachment;
   std::unique_ptr<SliderAttachment> dial2Attachment;
   std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> comboBoxAttachment;

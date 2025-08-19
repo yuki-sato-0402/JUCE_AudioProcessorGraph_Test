@@ -13,13 +13,8 @@
 FirFilter_JUCEAudioProcessorEditor::FirFilter_JUCEAudioProcessorEditor (FirFilter_JUCEAudioProcessor& p, juce::AudioProcessorValueTreeState& vts)
     : AudioProcessorEditor (&p), valueTreeState(vts)// 参照メンバーを初期化（必須）
 {
-
-  // ルック＆フィールの設定
   lightLookAndFeel.setColourScheme(juce::LookAndFeel_V4::getLightColourScheme());
-  // デバッグ: vts の state を確認
-  DBG("vts.state: " + valueTreeState.state.toXmlString());
 
-  
   selectComboBox.addItem("Rectangular", 1);
   selectComboBox.addItem("Triangular", 2);
   selectComboBox.addItem("Hann", 3); 
@@ -50,7 +45,6 @@ FirFilter_JUCEAudioProcessorEditor::FirFilter_JUCEAudioProcessorEditor (FirFilte
   label1.setJustificationType(juce::Justification::centred);
   addAndMakeVisible(label1);
   
-  
   std::cout << "order" << std::endl;
   dial2Attachment.reset (new SliderAttachment (valueTreeState, "order", dial2Slider));
   dial2Slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);    
@@ -59,7 +53,6 @@ FirFilter_JUCEAudioProcessorEditor::FirFilter_JUCEAudioProcessorEditor (FirFilte
   dial2Slider.setLookAndFeel(&lightLookAndFeel);
   dial2Slider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
 
-  
   label2.setText ("order", juce::dontSendNotification);
   label2.setJustificationType(juce::Justification::centred);
   addAndMakeVisible(label2);
@@ -75,8 +68,6 @@ void FirFilter_JUCEAudioProcessorEditor::paint (juce::Graphics& g)
 
 void FirFilter_JUCEAudioProcessorEditor::resized()
 {
-
-  //エディター全体の領域を取得
   auto area = getLocalBounds();
   auto componentWidth = (area.getWidth() - 80)/3;
   auto componentHeight = area.getHeight()- 40 ;
