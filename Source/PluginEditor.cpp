@@ -1,84 +1,65 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin editor.
-
-  ==============================================================================
-*/
-
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 //==============================================================================
-FirFilter_JUCEAudioProcessorEditor::FirFilter_JUCEAudioProcessorEditor (FirFilter_JUCEAudioProcessor& p, juce::AudioProcessorValueTreeState& vts)
-    : AudioProcessorEditor (&p), valueTreeState(vts)// 参照メンバーを初期化（必須）
+AudioProcessorGraphEditorTest::AudioProcessorGraphEditorTest (AudioProcessorGraphTest& p, juce::AudioProcessorValueTreeState& vts)
+    : AudioProcessorEditor (&p), audioProcessor(p), valueTreeState(vts)
 {
-  lightLookAndFeel.setColourScheme(juce::LookAndFeel_V4::getLightColourScheme());
+    currentOrder = { 0, 1, 2, 3 };
 
-  selectComboBox.addItem("Rectangular", 1);
-  selectComboBox.addItem("Triangular", 2);
-  selectComboBox.addItem("Hann", 3); 
-  selectComboBox.addItem("Hamming", 4); 
-  selectComboBox.addItem("Blackman", 5); 
-  selectComboBox.addItem("Blackman-Harris", 6); 
-  selectComboBox.addItem("Flat Top", 7); 
-  selectComboBox.addItem("Kaiser", 8); 
-  selectComboBox.setSelectedItemIndex(0);
-  comboBoxAttachment.reset (new juce::AudioProcessorValueTreeState::ComboBoxAttachment (valueTreeState, "window", selectComboBox));
-    
-  selectComboBox.setLookAndFeel(&lightLookAndFeel);
-  addAndMakeVisible(selectComboBox);
-  label3.setText ("window function", juce::dontSendNotification);
-  label3.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(label3);
-  
-  std::cout << "cutoff freq" << std::endl;
-  dial1Attachment.reset (new SliderAttachment (valueTreeState, "freq", dial1Slider));
-  dial1Slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-  dial1Slider.setTextValueSuffix (" hz");     
-  dial1Slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, dial1Slider.getTextBoxWidth(), dial1Slider.getTextBoxHeight());
-  addAndMakeVisible(dial1Slider);
-  dial1Slider.setLookAndFeel(&lightLookAndFeel);
-  dial1Slider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
- 
-  label1.setText ("cutoff freq", juce::dontSendNotification);
-  label1.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(label1);
-  
-  std::cout << "order" << std::endl;
-  dial2Attachment.reset (new SliderAttachment (valueTreeState, "order", dial2Slider));
-  dial2Slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);    
-  dial2Slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, dial2Slider.getTextBoxWidth(), dial2Slider.getTextBoxHeight());
-  addAndMakeVisible(dial2Slider);
-  dial2Slider.setLookAndFeel(&lightLookAndFeel);
-  dial2Slider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
+    for (int i = 0; i < 4; ++i)
+    {
+        // Create an EffectSlot for each effect and set up the onSwap callback
+        auto* slot = new EffectSlot (i, effectNames[currentOrder[i]]);
+        // Assigning a function object (lambda) to a member variable.
+        // The `itemDropped` function in the `EffectSlot` class defines the callback function that is called when a slot is dropped.
+        slot->onSwap = [this](int s1, int s2) { 
+            swapSlots(s1, s2); 
+            //This is equivalent to this->swapSlots(s1, s2);
+        };
+        slots.add (slot);
+        addAndMakeVisible (slot);
+    }
 
-  label2.setText ("order", juce::dontSendNotification);
-  label2.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(label2);
-
-  setSize(480, 220);
+    setSize (600, 400);
 }
 
 //==============================================================================
-void FirFilter_JUCEAudioProcessorEditor::paint (juce::Graphics& g)
+void AudioProcessorGraphEditorTest::paint (juce::Graphics& g)
 {
-  g.fillAll(juce::Colours::grey);
+    g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
 }
 
-void FirFilter_JUCEAudioProcessorEditor::resized()
+void AudioProcessorGraphEditorTest::resized()
 {
-  auto area = getLocalBounds();
-  auto componentWidth = (area.getWidth() - 80)/3;
-  auto componentHeight = area.getHeight()- 40 ;
-  auto padding = 20;          
+    auto area = getLocalBounds();
+    auto w = area.getWidth() / 2;
+    auto h = area.getHeight() / 2;
 
-  selectComboBox.setBounds(padding,  padding + 50, componentWidth ,  componentHeight / 4);
-  dial1Slider.setBounds(selectComboBox.getRight() + padding, padding,  componentWidth, componentHeight);
-  dial2Slider.setBounds(dial1Slider.getRight() + padding, padding ,  componentWidth , componentHeight);
+    slots[0]->setBounds (0, 0, w, h);
+    slots[1]->setBounds (w, 0, w, h);
+    slots[2]->setBounds (0, h, w, h);
+    slots[3]->setBounds (w, h, w, h);
+}
 
-  label1.setBounds(dial1Slider.getX(), padding, dial1Slider.getWidth(),dial1Slider.getTextBoxHeight() );
-  label2.setBounds(dial2Slider.getX(), padding, dial2Slider.getWidth(),dial2Slider.getTextBoxHeight() );
-  label3.setBounds(selectComboBox.getX(), padding, selectComboBox.getWidth(),selectComboBox.getHeight() );
+//slotIndex1 is the index of the slot to which the data was dragged, and slotIndex2 is the index of the slot to which the data was dropped.
+void AudioProcessorGraphEditorTest::swapSlots (int slotIndex1, int slotIndex2)
+{
+    std::cout << "Swapping slots " << slotIndex1 << " and " << slotIndex2 << std::endl;
+    int effectIdx1 = currentOrder[slotIndex1];
+    int effectIdx2 = currentOrder[slotIndex2];
 
+    currentOrder.set (slotIndex1, effectIdx2);
+    currentOrder.set (slotIndex2, effectIdx1);
+
+    updateSlotNames();
+    audioProcessor.updateGraphOrder (currentOrder);
+}
+
+void AudioProcessorGraphEditorTest::updateSlotNames()
+{
+    for (int i = 0; i < 4; ++i)
+    {
+        slots[i]->setEffectName (effectNames[currentOrder[i]]);
+    }
 }

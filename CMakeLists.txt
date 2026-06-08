@@ -71,7 +71,13 @@ target_sources(CMakeTest
         Source/PluginEditor.cpp
         Source/PluginEditor.h
         Source/PluginProcessor.cpp
-        Source/PluginProcessor.h)
+        Source/PluginProcessor.h
+        Source/DSP/ProcessorBase.h
+        Source/DSP/FIRProcessor.h
+        Source/DSP/DelayProcessor.h
+        Source/DSP/ReverbProcessor.h
+        Source/DSP/CompressorProcessor.h
+        Source/UI/EffectSlot.h)
 
 # `target_compile_definitions` adds some preprocessor definitions to our target. In a Projucer
 # project, these might be passed in the 'Preprocessor Definitions' field. JUCE modules also make use

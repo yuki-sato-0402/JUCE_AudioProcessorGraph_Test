@@ -9,16 +9,21 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "DSP/FIRProcessor.h"
+#include "DSP/DelayProcessor.h"
+#include "DSP/ReverbProcessor.h"
+#include "DSP/CompressorProcessor.h"
+
 using namespace juce::dsp;
 //==============================================================================
 /**
 */
-class FirFilter_JUCEAudioProcessor  : public juce::AudioProcessor, public juce::AudioProcessorValueTreeState::Listener
+class AudioProcessorGraphTest  : public juce::AudioProcessor, public juce::AudioProcessorValueTreeState::Listener
 {
 public:
     //==============================================================================
-    FirFilter_JUCEAudioProcessor();
-    ~FirFilter_JUCEAudioProcessor() override = default;
+    AudioProcessorGraphTest();
+    ~AudioProcessorGraphTest() override = default;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -56,26 +61,35 @@ public:
     //==============================================================================
     void parameterChanged(const juce::String& parameterID, float newValue) override;
 
+    void updateGraphOrder (const juce::Array<int>& newOrder);
+
 private:
     juce::AudioProcessorValueTreeState parameters;
 
-    float initialWindowParam;  // 初期値を直接保持
-    float initialFreqParam;
-    float initialOrderParam;
 
-    double lastSampleRate;
-    juce::dsp::WindowingFunction<float>::WindowingMethod windowingMethod;
-    float cutoffFrequency;
-    size_t filterOrder;
+    std::unique_ptr<juce::AudioProcessorGraph> mainGraph;
 
-    //std::unique_ptr<juce::dsp::FIR::Coefficients<float>> newCoefficients;
+    using AudioGraphIOProcessor = juce::AudioProcessorGraph::AudioGraphIOProcessor;
+     /** A convenient typedef for referring to a pointer to a node object. */
+    using Node = juce::AudioProcessorGraph::Node;
+    Node::Ptr audioInputNode;
+    Node::Ptr audioOutputNode;
+    Node::Ptr midiInputNode;
+    Node::Ptr midiOutputNode;
 
+    Node::Ptr firNode;
+    Node::Ptr delayNode;
+    Node::Ptr reverbNode;
+    Node::Ptr compressorNode;
 
-    // クラスメンバとして宣言
+    juce::Array<Node::Ptr> effectNodes;
+    juce::Array<int> currentOrder; // indices 0, 1, 2, 3
+
+    void initialiseGraph();
+    void updateConnections();
+
     juce::CriticalSection parameterUpdateLock;
 
-    ProcessorDuplicator<FIR::Filter<float>, FIR::Coefficients<float>> fir;
-
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FirFilter_JUCEAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioProcessorGraphTest)
 };

@@ -9,35 +9,29 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "UI/EffectSlot.h"
 
-class FirFilter_JUCEAudioProcessorEditor  : public juce::AudioProcessorEditor
+class AudioProcessorGraphEditorTest  : public juce::AudioProcessorEditor,
+                                            public juce::DragAndDropContainer
 {
 public:
-  FirFilter_JUCEAudioProcessorEditor (FirFilter_JUCEAudioProcessor&, juce::AudioProcessorValueTreeState& vts);
-  ~FirFilter_JUCEAudioProcessorEditor() override = default;
-
+  AudioProcessorGraphEditorTest (AudioProcessorGraphTest&, juce::AudioProcessorValueTreeState& vts);
+  ~AudioProcessorGraphEditorTest() override = default;
   //==============================================================================
   void paint (juce::Graphics& g) override;
   void resized() override; 
-  typedef juce::AudioProcessorValueTreeState::SliderAttachment SliderAttachment;
+  
+  void swapSlots (int slotIndex1, int slotIndex2);
+  void updateSlotNames();
 
 private:
-  juce::LookAndFeel_V4 lightLookAndFeel;
+  AudioProcessorGraphTest& audioProcessor;
   juce::AudioProcessorValueTreeState& valueTreeState; 
-  juce::Slider dial1Slider;
-  juce::Slider dial2Slider;
-  
 
-  juce::ComboBox selectComboBox;
+  juce::OwnedArray<EffectSlot> slots;
+  juce::Array<int> currentOrder; // Indices into effectNames
 
-  juce::Label  label1;
-  juce::Label  label2;
-  juce::Label  label3;
+  const juce::StringArray effectNames { "FIR Filter", "Delay", "Reverb", "Compressor" };
 
-  std::unique_ptr<SliderAttachment> dial1Attachment;
-  std::unique_ptr<SliderAttachment> dial2Attachment;
-  std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> comboBoxAttachment;
-
-
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FirFilter_JUCEAudioProcessorEditor)
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioProcessorGraphEditorTest)
 };

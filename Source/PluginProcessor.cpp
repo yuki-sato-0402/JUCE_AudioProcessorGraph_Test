@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-FirFilter_JUCEAudioProcessor::FirFilter_JUCEAudioProcessor()
+AudioProcessorGraphTest::AudioProcessorGraphTest()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -23,43 +23,32 @@ FirFilter_JUCEAudioProcessor::FirFilter_JUCEAudioProcessor()
     parameters(*this, nullptr, juce::Identifier("PARAMETERS"),
     juce::AudioProcessorValueTreeState::ParameterLayout {
       std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { "window",  1}, "Window",
-      juce::NormalisableRange<float>(0, 7, 1),0),
+      juce::NormalisableRange<float>(0, 7, 1), 0),
       std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { "freq",  1}, "Freq",
-      juce::NormalisableRange<float>(20.f, 20000.f, 0.01f),4400.f),
+      juce::NormalisableRange<float>(20.f, 20000.f, 0.01f), 4400.f),
       std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { "order",  1}, "Order",
-      juce::NormalisableRange<float>(20, 60, 1),21)
+      juce::NormalisableRange<float>(20, 60, 1), 21)
     }
-  )
+  ),
+
+//  This specifies "which type of object to create."
+  mainGraph (std::make_unique<juce::AudioProcessorGraph>())
 #endif
 {
-     // Add parameter listeners
     parameters.addParameterListener("window", this);
     parameters.addParameterListener("freq", this);
     parameters.addParameterListener("order", this);
 
-     // 初期値を取得
-    initialWindowParam = *parameters.getRawParameterValue("window");
-    initialFreqParam = *parameters.getRawParameterValue("freq");
-    initialOrderParam = *parameters.getRawParameterValue("order");
-
-    std::cout << "Initial window: " << initialWindowParam << std::endl;
-    std::cout << "Initial freq: " << initialFreqParam << std::endl; 
-    std::cout << "Initial order: " << initialOrderParam << std::endl;
-
-    // 初期値を使用して設定
-    windowingMethod = static_cast<juce::dsp::WindowingFunction<float>::WindowingMethod>(static_cast<int>(initialWindowParam));
-    cutoffFrequency = initialFreqParam;
-    filterOrder = static_cast<size_t>(initialOrderParam);
-
+    currentOrder = { 0, 1, 2, 3 }; // FIR, Delay, Reverb, Compressor
 }
 
 //==============================================================================
-const juce::String FirFilter_JUCEAudioProcessor::getName() const
+const juce::String AudioProcessorGraphTest::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool FirFilter_JUCEAudioProcessor::acceptsMidi() const
+bool AudioProcessorGraphTest::acceptsMidi() const
 {
    #if JucePlugin_WantsMidiInput
     return true;
@@ -68,7 +57,7 @@ bool FirFilter_JUCEAudioProcessor::acceptsMidi() const
    #endif
 }
 
-bool FirFilter_JUCEAudioProcessor::producesMidi() const
+bool AudioProcessorGraphTest::producesMidi() const
 {
    #if JucePlugin_ProducesMidiOutput
     return true;
@@ -77,7 +66,7 @@ bool FirFilter_JUCEAudioProcessor::producesMidi() const
    #endif
 }
 
-bool FirFilter_JUCEAudioProcessor::isMidiEffect() const
+bool AudioProcessorGraphTest::isMidiEffect() const
 {
    #if JucePlugin_IsMidiEffect
     return true;
@@ -86,132 +75,172 @@ bool FirFilter_JUCEAudioProcessor::isMidiEffect() const
    #endif
 }
 
-double FirFilter_JUCEAudioProcessor::getTailLengthSeconds() const
+double AudioProcessorGraphTest::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int FirFilter_JUCEAudioProcessor::getNumPrograms()
+int AudioProcessorGraphTest::getNumPrograms()
 {
-    return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
+    return 1;
 }
 
-int FirFilter_JUCEAudioProcessor::getCurrentProgram()
+int AudioProcessorGraphTest::getCurrentProgram()
 {
     return 0;
 }
 
-void FirFilter_JUCEAudioProcessor::setCurrentProgram (int index)
+void AudioProcessorGraphTest::setCurrentProgram (int index)
 {
-    juce::ignoreUnused (index);
 }
 
-const juce::String FirFilter_JUCEAudioProcessor::getProgramName (int index)
+const juce::String AudioProcessorGraphTest::getProgramName (int index)
 {
-    juce::ignoreUnused (index);
     return {};
 }
 
-void FirFilter_JUCEAudioProcessor::changeProgramName (int index, const juce::String& newName)
+void AudioProcessorGraphTest::changeProgramName (int index, const juce::String& newName)
 {
-    juce::ignoreUnused (index, newName);
-    // NB: This method is not used in this example, but you can implement it if you want to support program names.
-    // You can also use the AudioProcessorValueTreeState to manage program names.
 }
 
 //==============================================================================
-void FirFilter_JUCEAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void AudioProcessorGraphTest::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    lastSampleRate = sampleRate;
-    
-    juce::dsp::ProcessSpec spec;
-    spec.sampleRate = sampleRate;
-    spec.maximumBlockSize =  static_cast<uint32> (samplesPerBlock);
-    spec.numChannels = static_cast<uint32> (getTotalNumOutputChannels());
+    mainGraph->setPlayConfigDetails (getMainBusNumInputChannels(),
+                                     getMainBusNumOutputChannels(),
+                                     sampleRate, samplesPerBlock);
+    mainGraph->prepareToPlay (sampleRate, samplesPerBlock);
 
-//    fir.state = FilterDesign<float>::designFIRLowpassWindowMethod (440.0f, sampleRate, 21,
-//        WindowingFunction<float>::blackman);
-    fir.reset();
-    fir.state = juce::dsp::FilterDesign<float>::designFIRLowpassWindowMethod(
-        cutoffFrequency, lastSampleRate, filterOrder, windowingMethod);
-    fir.prepare (spec);
+    initialiseGraph();
 }
 
-void FirFilter_JUCEAudioProcessor::releaseResources()
+void AudioProcessorGraphTest::initialiseGraph()
 {
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
+   // Delete all connections to previously existing nodes
+    mainGraph->clear();
+
+    audioInputNode = mainGraph->addNode (std::make_unique<AudioGraphIOProcessor> (AudioGraphIOProcessor::audioInputNode));
+    audioOutputNode = mainGraph->addNode (std::make_unique<AudioGraphIOProcessor> (AudioGraphIOProcessor::audioOutputNode));
+    midiInputNode = mainGraph->addNode (std::make_unique<AudioGraphIOProcessor> (AudioGraphIOProcessor::midiInputNode));
+    midiOutputNode = mainGraph->addNode (std::make_unique<AudioGraphIOProcessor> (AudioGraphIOProcessor::midiOutputNode));
+
+    firNode = mainGraph->addNode (std::make_unique<FIRProcessor>());
+    delayNode = mainGraph->addNode (std::make_unique<DelayProcessor>());
+    reverbNode = mainGraph->addNode (std::make_unique<ReverbProcessor>());
+    compressorNode = mainGraph->addNode (std::make_unique<CompressorProcessor>());
+
+    // Initialize FIR with current parameter values
+    if (auto* firProc = dynamic_cast<FIRProcessor*> (firNode->getProcessor()))
+    {
+        float freq = *parameters.getRawParameterValue("freq");
+        int order = (int)*parameters.getRawParameterValue("order");
+        int windowIdx = (int)*parameters.getRawParameterValue("window");
+        auto window = static_cast<juce::dsp::WindowingFunction<float>::WindowingMethod>(windowIdx);
+        firProc->setParams(freq, order, window);
+    }
+
+   // Delete or Add Elements (juce::Array<Node::Ptr>)
+    effectNodes.clear();
+    effectNodes.add (firNode);
+    effectNodes.add (delayNode);
+    effectNodes.add (reverbNode);
+    effectNodes.add (compressorNode);
+
+    updateConnections();
+}
+
+void AudioProcessorGraphTest::updateConnections()
+{
+    for (auto connection : mainGraph->getConnections())
+        mainGraph->removeConnection (connection);
+
+    Node::Ptr lastNode = audioInputNode;
+
+     // These require a nodeID and a channel index for building the appropriate connections and the whole process is repeated for all the required channels.
+    for (int i = 0; i < currentOrder.size(); ++i)
+    {
+        Node::Ptr currentNode = effectNodes[currentOrder[i]];
+        
+        for (int channel = 0; channel < 2; ++channel)
+            mainGraph->addConnection ({ { lastNode->nodeID, channel }, { currentNode->nodeID, channel } });
+
+        lastNode = currentNode;
+    }
+
+   
+    for (int channel = 0; channel < 2; ++channel)
+        mainGraph->addConnection ({ { lastNode->nodeID, channel }, { audioOutputNode->nodeID, channel } });
+
+    // MIDI pass-through
+    mainGraph->addConnection ({ { midiInputNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex }, { midiOutputNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex } });
+}
+
+// If the order of the effects changes
+void AudioProcessorGraphTest::updateGraphOrder (const juce::Array<int>& newOrder)
+{
+    currentOrder = newOrder;
+    updateConnections();
+}
+
+void AudioProcessorGraphTest::releaseResources()
+{
+    mainGraph->releaseResources();
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool FirFilter_JUCEAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool AudioProcessorGraphTest::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-  #if JucePlugin_IsMidiEffect
-    juce::ignoreUnused (layouts);
-    return true;
-  #else
-    // This is the place where you check if the layout is supported.
-    // In this template code we only support mono or stereo.
-    // Some plugin hosts, such as certain GarageBand versions, will only
-    // load plugins that support stereo bus layouts.
     if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
      && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
         return false;
 
-    // This checks if the input layout matches the output layout
-   #if ! JucePlugin_IsSynth
     if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
         return false;
-   #endif
 
     return true;
-  #endif
 }
 #endif
 
-void FirFilter_JUCEAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+/*
+Plugin
+ ├─ OscillatorProcessor
+ ├─ FilterProcessor
+ ├─ DelayProcessor
+ └─ ReverbProcessor
+ As shown above, each module acts as an independent AudioProcessor.
+ In other words, each has its own `processBlock()` method.
+ From the host's perspective, `AudioProcessorGraphTest::processBlock()` is called, 
+ but `AudioProcessorGraphTest` internally calls the `processBlock()` method of each module.
+*/
+
+void AudioProcessorGraphTest::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    juce::ignoreUnused (midiMessages);
-    juce::ScopedLock parameterLock (parameterUpdateLock);
-
-    juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-
-    
-
-    juce::dsp::AudioBlock<float> block (buffer);
-
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+    for (auto i = getMainBusNumInputChannels(); i < getMainBusNumOutputChannels(); ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-
-    //fir.state = juce::dsp::FilterDesign<float>::designFIRLowpassWindowMethod(
-    //    cutoffFrequency, lastSampleRate, filterOrder, windowingMethod);
-    fir.process(juce::dsp::ProcessContextReplacing<float> (block));
+    mainGraph->processBlock (buffer, midiMessages);
 }
 
 //==============================================================================
-bool FirFilter_JUCEAudioProcessor::hasEditor() const
+bool AudioProcessorGraphTest::hasEditor() const
 {
-    return true; // (change this to false if you choose to not supply an editor)
+    return true;
 }
 
-juce::AudioProcessorEditor* FirFilter_JUCEAudioProcessor::createEditor()
+juce::AudioProcessorEditor* AudioProcessorGraphTest::createEditor()
 {
-    return new FirFilter_JUCEAudioProcessorEditor (*this,  parameters);
+    return new AudioProcessorGraphEditorTest (*this, parameters);
 }
 
 //==============================================================================
-void FirFilter_JUCEAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void AudioProcessorGraphTest::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = parameters.copyState();
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
 
-void FirFilter_JUCEAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void AudioProcessorGraphTest::setStateInformation (const void* data, int sizeInBytes)
 {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState.get() != nullptr)
@@ -219,34 +248,24 @@ void FirFilter_JUCEAudioProcessor::setStateInformation (const void* data, int si
             parameters.replaceState(juce::ValueTree::fromXml(*xmlState));
 }
 
-void FirFilter_JUCEAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
+void AudioProcessorGraphTest::parameterChanged(const juce::String& parameterID, float newValue)
 {
-
-    if (parameterID == "window")
+    if (firNode != nullptr)
     {
-        std::cout << "Window function changed to: " << newValue << std::endl;
-        auto newWindowingMethod =
-            static_cast<juce::dsp::WindowingFunction<float>::WindowingMethod>(static_cast<int>(newValue));
-        windowingMethod = newWindowingMethod;
+        auto* firProc = dynamic_cast<FIRProcessor*> (firNode->getProcessor());
+        if (firProc != nullptr)
+        {
+            float freq = *parameters.getRawParameterValue("freq");
+            int order = (int)*parameters.getRawParameterValue("order");
+            int windowIdx = (int)*parameters.getRawParameterValue("window");
+            auto window = static_cast<juce::dsp::WindowingFunction<float>::WindowingMethod>(windowIdx);
+            
+            firProc->setParams(freq, order, window);
+        }
     }
-    else if (parameterID == "freq")
-    {
-        std::cout << "Cutoff frequency changed to: " << newValue << std::endl;
-        cutoffFrequency = newValue;
-    }
-    else if (parameterID == "order")
-    {
-        std::cout << "Order changed to: " << newValue << std::endl;
-        filterOrder = static_cast<size_t>(newValue);
-    }
-
-    juce::ScopedLock parameterLock (parameterUpdateLock);
-
-    *fir.state = *juce::dsp::FilterDesign<float>::designFIRLowpassWindowMethod(
-        cutoffFrequency, lastSampleRate, filterOrder, windowingMethod);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new FirFilter_JUCEAudioProcessor();
+    return new AudioProcessorGraphTest();
 }
