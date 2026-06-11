@@ -27,7 +27,11 @@ AudioProcessorGraphTest::AudioProcessorGraphTest()
       std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { "freq",  1}, "Freq",
       juce::NormalisableRange<float>(20.f, 20000.f, 0.01f), 4400.f),
       std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { "order",  1}, "Order",
-      juce::NormalisableRange<float>(20, 60, 1), 21)
+      juce::NormalisableRange<float>(20, 60, 1), 21),
+      std::make_unique<juce::AudioParameterBool>(juce::ParameterID { "bypass_0", 1 }, "Bypass FIR", false),
+      std::make_unique<juce::AudioParameterBool>(juce::ParameterID { "bypass_1", 1 }, "Bypass Delay", false),
+      std::make_unique<juce::AudioParameterBool>(juce::ParameterID { "bypass_2", 1 }, "Bypass Reverb", false),
+      std::make_unique<juce::AudioParameterBool>(juce::ParameterID { "bypass_3", 1 }, "Bypass Compressor", false)
     }
   ),
 
@@ -38,6 +42,10 @@ AudioProcessorGraphTest::AudioProcessorGraphTest()
     parameters.addParameterListener("window", this);
     parameters.addParameterListener("freq", this);
     parameters.addParameterListener("order", this);
+    parameters.addParameterListener("bypass_0", this);
+    parameters.addParameterListener("bypass_1", this);
+    parameters.addParameterListener("bypass_2", this);
+    parameters.addParameterListener("bypass_3", this);
 
     currentOrder = { 0, 1, 2, 3 }; // FIR, Delay, Reverb, Compressor
 }
@@ -128,6 +136,12 @@ void AudioProcessorGraphTest::initialiseGraph()
     delayNode = mainGraph->addNode (std::make_unique<DelayProcessor>());
     reverbNode = mainGraph->addNode (std::make_unique<ReverbProcessor>());
     compressorNode = mainGraph->addNode (std::make_unique<CompressorProcessor>());
+
+    // Initialize bypass states
+    firNode->setBypassed(*parameters.getRawParameterValue("bypass_0") > 0.5f);
+    delayNode->setBypassed(*parameters.getRawParameterValue("bypass_1") > 0.5f);
+    reverbNode->setBypassed(*parameters.getRawParameterValue("bypass_2") > 0.5f);
+    compressorNode->setBypassed(*parameters.getRawParameterValue("bypass_3") > 0.5f);
 
     // Initialize FIR with current parameter values
     if (auto* firProc = dynamic_cast<FIRProcessor*> (firNode->getProcessor()))
@@ -250,6 +264,11 @@ void AudioProcessorGraphTest::setStateInformation (const void* data, int sizeInB
 
 void AudioProcessorGraphTest::parameterChanged(const juce::String& parameterID, float newValue)
 {
+    if (parameterID == "bypass_0" && firNode != nullptr) firNode->setBypassed(newValue > 0.5f);
+    if (parameterID == "bypass_1" && delayNode != nullptr) delayNode->setBypassed(newValue > 0.5f);
+    if (parameterID == "bypass_2" && reverbNode != nullptr) reverbNode->setBypassed(newValue > 0.5f);
+    if (parameterID == "bypass_3" && compressorNode != nullptr) compressorNode->setBypassed(newValue > 0.5f);
+
     if (firNode != nullptr)
     {
         auto* firProc = dynamic_cast<FIRProcessor*> (firNode->getProcessor());

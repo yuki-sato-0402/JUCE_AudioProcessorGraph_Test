@@ -23,6 +23,7 @@ public:
   
   void swapSlots (int slotIndex1, int slotIndex2);
   void updateSlotNames();
+  void updateAttachments();
 
 private:
   AudioProcessorGraphTest& audioProcessor;
@@ -30,6 +31,8 @@ private:
 
   juce::OwnedArray<EffectSlot> slots;
   juce::Array<int> currentOrder; // Indices into effectNames
+
+  juce::OwnedArray<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachments;
 
   const juce::StringArray effectNames { "FIR Filter", "Delay", "Reverb", "Compressor" };
 

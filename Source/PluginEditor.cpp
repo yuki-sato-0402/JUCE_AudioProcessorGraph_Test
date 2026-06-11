@@ -21,6 +21,8 @@ AudioProcessorGraphEditorTest::AudioProcessorGraphEditorTest (AudioProcessorGrap
         addAndMakeVisible (slot);
     }
 
+    updateAttachments();
+
     setSize (600, 400);
 }
 
@@ -53,6 +55,7 @@ void AudioProcessorGraphEditorTest::swapSlots (int slotIndex1, int slotIndex2)
     currentOrder.set (slotIndex2, effectIdx1);
 
     updateSlotNames();
+    updateAttachments();
     audioProcessor.updateGraphOrder (currentOrder);
 }
 
@@ -61,5 +64,21 @@ void AudioProcessorGraphEditorTest::updateSlotNames()
     for (int i = 0; i < 4; ++i)
     {
         slots[i]->setEffectName (effectNames[currentOrder[i]]);
+    }
+}
+
+
+//Implement a method to dynamically rebuild the button-parameter mappings (ButtonAttachment) whenever the effector in a slot is replaced.        
+void AudioProcessorGraphEditorTest::updateAttachments()
+{
+   /* For example, when an FIR filter is in Slot 1, the checkbox for Slot 1 controls the FIR filter; 
+   after moving the FIR filter to Slot 2, the checkbox for Slot 2 will continue to control it.*/
+    bypassAttachments.clear();
+
+    for (int i = 0; i < 4; ++i)
+    {
+        auto paramID = "bypass_" + juce::String(currentOrder[i]);
+        bypassAttachments.add(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>
+            (valueTreeState, paramID, slots[i]->getBypassButton()));
     }
 }
